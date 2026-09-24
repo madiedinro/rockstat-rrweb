@@ -1,0 +1,48 @@
+{
+  "name": "rrweb-viewer",
+  "version": "0.1.0",
+  "description": "Плеер записей поведения пользователей (rrweb) с загрузкой данных из ClickHouse",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/rrweb-viewer.umd.cjs",
+  "module": "./dist/rrweb-viewer.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/rrweb-viewer.js",
+      "require": "./dist/rrweb-viewer.umd.cjs"
+    },
+    "./style.css": "./dist/rrweb-viewer.css"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "vite --config vite.demo.config.ts",
+    "build": "tsc -p tsconfig.lib.json && vite build --config vite.lib.config.ts",
+    "build:demo": "vite build --config vite.demo.config.ts",
+    "preview": "vite preview --config vite.demo.config.ts",
+    "export": "node scripts/export.mjs",
+    "test": "node --test tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "rrweb",
+    "session-replay",
+    "clickhouse",
+    "analytics"
+  ],
+  "dependencies": {
+    "@rrweb/types": "2.1.6",
+    "fflate": "0.8.3",
+    "rrweb": "2.1.6"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0",
+    "vite-plugin-dts": "^5.1.1"
+  }
+}

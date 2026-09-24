@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>rrweb viewer — демо</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">rrweb viewer</div>
+      <form id="form" class="form" autocomplete="off">
+        <input id="uid" name="uid" type="text" placeholder="uid пользователя" list="uids" spellcheck="false" />
+        <datalist id="uids"></datalist>
+        <button type="submit" id="load">Загрузить</button>
+        <select id="recent" title="Последние пользователи с записями">
+          <option value="">— последние пользователи —</option>
+        </select>
+        <label class="file">
+          <input id="file" type="file" accept=".json,.jsonl,.ndjson,application/json" />
+          <span>из файла…</span>
+        </label>
+        <label class="opt"><input id="autonext" type="checkbox" /> подряд</label>
+      </form>
+      <div id="status" class="status"></div>
+    </header>
+    <main id="viewer"></main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
