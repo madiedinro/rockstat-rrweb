@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
+import { proxyRewriter, rewriteCssUrls } from './src/assets.ts';
 
 /**
  * Блокировщики рекламы (EasyPrivacy и т.п.) режут любой URL вида `/rrweb.js`,
@@ -31,6 +33,56 @@ function unblockRrweb(mode: string): Plugin {
   };
 }
 
+const ASSET_PREFIX = '/asset?url=';
+const BROWSER_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36';
+
+/**
+ * Прокси для ресурсов записанных страниц: `/asset?url=<encoded>`.
+ * CDN часто не отдают стили и картинки сторонним страницам (hotlink-защита, WAF),
+ * а серверному запросу отдают. В CSS переписываем `url()`/`@import` тоже на прокси.
+ */
+function assetProxy(): Plugin {
+  const handler = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (!req.url?.startsWith('/asset?')) return next();
+    const target = new URL(req.url, 'http://localhost').searchParams.get('url') ?? '';
+    if (!/^https?:\/\//i.test(target)) {
+      res.statusCode = 400;
+      res.end('bad url');
+      return;
+    }
+    try {
+      const upstream = await fetch(target, {
+        headers: { 'user-agent': BROWSER_UA, accept: '*/*', 'accept-language': 'en-US,en;q=0.9' },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(20_000),
+      });
+      const type = upstream.headers.get('content-type') ?? 'application/octet-stream';
+      res.statusCode = upstream.status;
+      res.setHeader('cache-control', 'public, max-age=3600');
+      if (/text\/css/i.test(type) || /\.css(\?|#|$)/i.test(target)) {
+        res.setHeader('content-type', 'text/css; charset=utf-8');
+        res.end(rewriteCssUrls(await upstream.text(), proxyRewriter(ASSET_PREFIX), upstream.url || target));
+      } else {
+        res.setHeader('content-type', type);
+        res.end(Buffer.from(await upstream.arrayBuffer()));
+      }
+    } catch (err) {
+      res.statusCode = 502;
+      res.end(err instanceof Error ? err.message : String(err));
+    }
+  };
+  return {
+    name: 'asset-proxy',
+    configureServer: (server) => {
+      server.middlewares.use(handler);
+    },
+    configurePreviewServer: (server) => {
+      server.middlewares.use(handler);
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const raw = env.CLICKHOUSE_URL || 'http://localhost:8123/default';
@@ -51,7 +103,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: 'demo',
-    plugins: [unblockRrweb(mode)],
+    plugins: [unblockRrweb(mode), assetProxy()],
     optimizeDeps: { exclude: ['rrweb'] },
     envDir: fileURLToPath(new URL('.', import.meta.url)),
     resolve: {

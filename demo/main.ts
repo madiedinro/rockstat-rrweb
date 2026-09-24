@@ -1,4 +1,4 @@
-import { ClickHouseSource, RrwebViewer, formatDuration, type Recording, type RrwebRow } from 'rrweb-viewer';
+import { ClickHouseSource, RrwebViewer, formatDuration, proxyRewriter, type Recording, type RrwebRow } from 'rrweb-viewer';
 
 declare const __CH_DATABASE__: string;
 declare const __CH_TABLE__: string;
@@ -21,6 +21,9 @@ const source = new ClickHouseSource(
 const viewer = new RrwebViewer('#viewer', {
   autoPlay: true,
   autoNext: autonext.checked,
+  // Стили и картинки записанных страниц идут через прокси dev-сервера (/asset?url=…):
+  // многие CDN не отдают ресурсы сторонним страницам. Отключить: ?direct=1
+  rewriteAssets: new URL(location.href).searchParams.has('direct') ? undefined : proxyRewriter('/asset?url='),
   onSelect: (rec) => {
     if (rec) document.title = `${rec.pageUrl} — rrweb viewer`;
   },

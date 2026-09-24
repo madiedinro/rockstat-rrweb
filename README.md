@@ -90,11 +90,42 @@ const recordings = parseRows(rows, { onWarning: console.warn });
 | `autoPlay`, `autoNext` | `false`, `false` | запуск при выборе, переход к следующей записи |
 | `showList`, `showInfo` | `true` | боковой список и панель с информацией |
 | `mouseTail`, `locale` | `true`, `'ru'` | след курсора, язык (`ru`/`en`) |
+| `rewriteAssets` | — | подмена URL стилей/картинок/шрифтов записанной страницы, см. ниже |
 | `onSelect`, `onStateChange` | — | колбэки |
 
 Методы: `load(uid, source)`, `loadRows(rows)`, `setRecordings(recs)`, `select(i)`, `play()`, `pause()`,
 `toggle()`, `seek(ms)`, `setSpeed(n)`, `setSkipInactive(b)`, `setAutoNext(b)`, `next()`, `prev()`,
 `toggleFullscreen()`, `destroy()`; свойства `current`, `list`, `playing`.
+
+### Ресурсы записанной страницы (стили, картинки, шрифты)
+
+rrweb не сохраняет внешние стили и картинки — только ссылки на них. При воспроизведении браузер
+запрашивает их с оригинального CDN, и тот часто отвечает отказом (hotlink-защита, WAF, авторизация,
+удалённая старая сборка). Страница тогда выглядит «голой»: без стилей и картинок.
+
+Решение — гонять ресурсы через свой прокси. Библиотека умеет подменять URL во всех событиях:
+
+```ts
+import { RrwebViewer, proxyRewriter } from 'rrweb-viewer';
+
+const viewer = new RrwebViewer('#player', {
+  // https://cdn.site/app.css → /asset?url=https%3A%2F%2Fcdn.site%2Fapp.css
+  rewriteAssets: proxyRewriter('/asset?url='),
+});
+```
+
+Прокси на сервере должен запросить ресурс от своего имени и отдать его с исходным `Content-Type`,
+а в CSS переписать `url()`/`@import` тем же способом — для этого есть `rewriteCssUrls(css, rewriter, baseUrl)`.
+Рабочий пример — middleware `assetProxy()` в `vite.demo.config.ts` (работает и в `pnpm dev`, и в `pnpm preview`).
+Отключить прокси в демо: `?direct=1`.
+
+Своя логика вместо прокси (например, ресурсы уже сложены в S3):
+
+```ts
+rewriteAssets: (url, kind) => (kind === 'stylesheet' ? url.replace('https://cdn.site/', 'https://archive.my/') : null);
+```
+
+Без UI: `rewriteAssetUrls(events, rewriter)` меняет события на месте.
 
 ## Как устроены данные
 
@@ -128,7 +159,8 @@ pnpm export <uid>   # выгрузить строки в exports/<uid>.jsonl (м
 
 - Блокировщики рекламы (EasyPrivacy) режут URL вида `*/rrweb.js`. В production-сборке это не мешает
   (rrweb внутри общего бандла), а в dev-режиме демо отдаёт rrweb под другим именем файла.
-- Внешние стили и картинки записанной страницы плеер грузит с оригинального сайта — если сайт их не
-  отдаёт (CORS, авторизация), страница будет выглядеть беднее, чем у пользователя.
+- Внешние стили и картинки записанной страницы плеер грузит с оригинального сайта. CDN текущего
+  проекта отдаёт их только при прямом заходе, а подгрузкам со сторонней страницы отвечает 503 —
+  поэтому демо проксирует ресурсы через `/asset?url=…` (см. выше).
 - CORS у ClickHouse включается параметром `add_http_cors_header=1` (библиотека его добавляет);
   preflight-запросов при `auth: 'url'` не бывает.

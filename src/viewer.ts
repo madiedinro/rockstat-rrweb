@@ -1,4 +1,5 @@
 import { Replayer } from 'rrweb';
+import { rewriteAssetUrls, type AssetUrlRewriter } from './assets.ts';
 import { parseRows, type ParseOptions } from './parse.ts';
 import type { Recording, RrwebRow } from './types.ts';
 
@@ -30,6 +31,12 @@ export interface ViewerOptions {
   locale?: 'ru' | 'en';
   /** Настройки парсера для `loadRows()`. */
   parse?: ParseOptions;
+  /**
+   * Подмена URL внешних ресурсов записанной страницы (стили, картинки, шрифты) перед
+   * воспроизведением — например, на свой прокси, если сайт не отдаёт их плееру.
+   * См. `proxyRewriter()`.
+   */
+  rewriteAssets?: AssetUrlRewriter;
   onSelect?: (recording: Recording | null, index: number) => void;
   onStateChange?: (state: ViewerState) => void;
 }
@@ -435,7 +442,8 @@ export class RrwebViewer {
   private mount(rec: Recording, autoPlay: boolean): void {
     this.ui.frame.innerHTML = '';
     this.ui.hint.hidden = true;
-    const replayer = new Replayer(rec.events, {
+    const events = this.opts.rewriteAssets ? rewriteAssetUrls(structuredClone(rec.events), this.opts.rewriteAssets) : rec.events;
+    const replayer = new Replayer(events, {
       root: this.ui.frame,
       speed: this.speed,
       skipInactive: this.skipInactive,
